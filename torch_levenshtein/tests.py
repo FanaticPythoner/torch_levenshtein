@@ -1,14 +1,13 @@
-[tests.py]
 import unittest
 import torch
 
-from torch_fast_wavefront_levenshtein import TorchFastWavefrontLevenshtein
+from torch_levenshtein import TorchLevenshtein
 
 
-class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
+class TorchLevenshteinTests(unittest.TestCase):
     """
     Description:
-        Test suite for TorchFastWavefrontLevenshtein, ensuring robust coverage
+        Test suite for TorchLevenshtein, ensuring robust coverage
         of edge cases, typical use cases, and internal method correctness.
     
     Parameters:
@@ -35,9 +34,9 @@ class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
             None
         """
         # ===============
-        # Sub step 1.1: Create the TorchFastWavefrontLevenshtein object with no entities.
+        # Sub step 1.1: Create the TorchLevenshtein object with no entities.
         # ===============
-        wfl = TorchFastWavefrontLevenshtein(concepts_per_entity=[])  # Create object with empty entity list.
+        wfl = TorchLevenshtein(concepts_per_entity=[])  # Create object with empty entity list.
 
         # ===============
         # Sub step 1.2: Check that all_concepts is empty.
@@ -58,9 +57,9 @@ class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
             None
         """
         # ===============
-        # Sub step 1.1: Create the TorchFastWavefrontLevenshtein object with one entity, no concepts.
+        # Sub step 1.1: Create the TorchLevenshtein object with one entity, no concepts.
         # ===============
-        wfl = TorchFastWavefrontLevenshtein(concepts_per_entity=[[]])  # Single entity, no concepts.
+        wfl = TorchLevenshtein(concepts_per_entity=[[]])  # Single entity, no concepts.
 
         # ===============
         # Sub step 1.2: Check that all_concepts is empty.
@@ -90,9 +89,9 @@ class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
         ]
 
         # ===============
-        # Sub step 1.2: Create the TorchFastWavefrontLevenshtein object.
+        # Sub step 1.2: Create the TorchLevenshtein object.
         # ===============
-        wfl = TorchFastWavefrontLevenshtein(concepts_per_entity=concepts_per_entity)
+        wfl = TorchLevenshtein(concepts_per_entity=concepts_per_entity)
 
         # ===============
         # Sub step 1.3: Check that expected concepts are in the final vocabulary.
@@ -123,7 +122,7 @@ class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
         # ===============
         # Sub step 2.1: Create the object with no entities.
         # ===============
-        wfl = TorchFastWavefrontLevenshtein(concepts_per_entity=[])  # Create object with empty entity list.
+        wfl = TorchLevenshtein(concepts_per_entity=[])  # Create object with empty entity list.
 
         # ===============
         # Sub step 2.2: Build the distance matrix.
@@ -160,7 +159,7 @@ class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
         # ===============
         # Sub step 2.1: Create the object with a single concept.
         # ===============
-        wfl = TorchFastWavefrontLevenshtein(concepts_per_entity=[["hello"]])  # Single concept.
+        wfl = TorchLevenshtein(concepts_per_entity=[["hello"]])  # Single concept.
 
         # ===============
         # Sub step 2.2: Build distance matrix.
@@ -203,7 +202,7 @@ class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
         # ===============
         # Sub step 2.1: Create the object with multiple concepts (cat, cut, cast).
         # ===============
-        wfl = TorchFastWavefrontLevenshtein(concepts_per_entity=[["cat"], ["cut"], ["cast"]])
+        wfl = TorchLevenshtein(concepts_per_entity=[["cat"], ["cut"], ["cast"]])
 
         # ===============
         # Sub step 2.2: Build the distance matrix.
@@ -253,7 +252,7 @@ class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
         # ===============
         # Sub step 3.1: Create the object with no entities.
         # ===============
-        wfl = TorchFastWavefrontLevenshtein(concepts_per_entity=[])  # Empty entities.
+        wfl = TorchLevenshtein(concepts_per_entity=[])  # Empty entities.
 
         # ===============
         # Sub step 3.2: Build synergy matrix.
@@ -286,7 +285,7 @@ class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
         # ===============
         # Sub step 3.1: Create with 3 entities, each has no concepts.
         # ===============
-        wfl = TorchFastWavefrontLevenshtein(concepts_per_entity=[[], [], []])  # 3 empty entities.
+        wfl = TorchLevenshtein(concepts_per_entity=[[], [], []])  # 3 empty entities.
 
         # ===============
         # Sub step 3.2: Build synergy matrix.
@@ -321,7 +320,7 @@ class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
         # E0 => [apple, banana]
         # E1 => [banana, kiwi]
         # E2 => [grape]
-        wfl = TorchFastWavefrontLevenshtein(
+        wfl = TorchLevenshtein(
             concepts_per_entity=[
                 ["apple", "banana"],
                 ["banana", "kiwi"],
@@ -371,7 +370,7 @@ class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
         # ===============
         # Sub step 3.1: Create with 3 entities: [cat], [cut], [cast, cat].
         # ===============
-        wfl = TorchFastWavefrontLevenshtein(
+        wfl = TorchLevenshtein(
             concepts_per_entity=[["cat"], ["cut"], ["cast", "cat"]]
         )
 
@@ -428,7 +427,7 @@ class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
         # ===============
         # Sub step 4.1: Create the object with known concepts.
         # ===============
-        wfl = TorchFastWavefrontLevenshtein(concepts_per_entity=[["foo", "bar"]])  # Known: foo, bar.
+        wfl = TorchLevenshtein(concepts_per_entity=[["foo", "bar"]])  # Known: foo, bar.
 
         # ===============
         # Sub step 4.2: Build distance matrix.
@@ -467,7 +466,7 @@ class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
         # ===============
         # Sub step 4.1: Create with 2 entities => indices 0, 1 only.
         # ===============
-        wfl = TorchFastWavefrontLevenshtein(concepts_per_entity=[["cat"], ["dog"]])
+        wfl = TorchLevenshtein(concepts_per_entity=[["cat"], ["dog"]])
 
         # ===============
         # Sub step 4.2: Build synergy matrix.
@@ -500,7 +499,7 @@ class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
         # ===============
         # Sub step 4.1: Create with 2 entities, each has one distinct concept => synergy=0 between them.
         # ===============
-        wfl = TorchFastWavefrontLevenshtein(concepts_per_entity=[["cat"], ["dog"]])
+        wfl = TorchLevenshtein(concepts_per_entity=[["cat"], ["dog"]])
 
         # ===============
         # Sub step 4.2: Build synergy matrix.
@@ -543,7 +542,7 @@ class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
         # ===============
         # Sub step 4.1: Create scenario with 3 entities: [cat], [cut], [cast, cat].
         # ===============
-        wfl = TorchFastWavefrontLevenshtein(
+        wfl = TorchLevenshtein(
             concepts_per_entity=[["cat"], ["cut"], ["cast", "cat"]]
         )
 
@@ -606,7 +605,7 @@ class TorchFastWavefrontLevenshteinTests(unittest.TestCase):
         # ===============
         # Sub step 4.1: Create scenario with cat, cut, cast. Build distances.
         # ===============
-        wfl = TorchFastWavefrontLevenshtein(
+        wfl = TorchLevenshtein(
             concepts_per_entity=[["cat", "cut", "cast"]]
         )
         wfl.build_distance_matrix()  # Build distance matrix for cat, cut, cast.
