@@ -764,3 +764,205 @@ class TorchLevenshtein:
         # If dp_buffer has data, move it.
         if self.dp_buffer is not None and self.dp_buffer.numel() > 0:
             self.dp_buffer = self.dp_buffer.to(device)
+
+    def subset_from_entities_instance(self, entity_indices: List[int]) -> "TorchLevenshtein":
+        """
+        Description:
+            Creates a new TorchLevenshtein instance restricted to a subset of entities.
+            1) Only the specified entities are kept (duplicates removed, out-of-range removed).
+            2) Only the concepts used by those entities are included.
+            3) Distance matrix is sliced accordingly.
+            4) Synergy matrix is rebuilt for the sub-membership.
+
+        Parameters:
+            entity_indices (List[int]): Indices of entities to keep.
+
+        Returns:
+            new_tl (TorchLevenshtein): A new TorchLevenshtein object with only those entities and concepts.
+        """
+        e_t_raw = torch.tensor(entity_indices, device=self.device, dtype=torch.long)
+        n_all = self.num_entities
+        valid_mask = (e_t_raw >= 0) & (e_t_raw < n_all)
+        e_t_valid = e_t_raw[valid_mask]
+        e_t_uniq = torch.unique(e_t_valid, sorted=True)
+        if e_t_uniq.numel() == 0:
+            return TorchLevenshtein([], device=self.device)
+
+        sub_rows = e_t_uniq
+        E_mask = torch.nonzero(self.E, as_tuple=True)
+        E_rows, E_cols = E_mask[0], E_mask[1]
+        row_in_subset = torch.isin(E_rows, sub_rows)
+        E_rows_sub = E_rows[row_in_subset]
+        E_cols_sub = E_cols[row_in_subset]
+        used_concepts = torch.unique(E_cols_sub, sorted=True)
+
+        if used_concepts.numel() == 0:
+            new_concepts_empty = [[] for _ in range(sub_rows.numel())]
+            return TorchLevenshtein(new_concepts_empty, device=self.device)
+
+        sub_codes_all_2D = self.codes_all_2D[used_concepts, :]
+        sub_lengths_all = self.lengths_all[used_concepts]
+        sub_distance = self.distance_matrix[used_concepts][:, used_concepts]
+
+        # Build a map from old entity index -> new row index
+        new_entity_index_map = {}
+        for i, ent_idx in enumerate(sub_rows.tolist()):
+            new_entity_index_map[ent_idx] = i
+
+        # Build a map from old concept index -> new concept index
+        new_concept_index_map = {}
+        for i, c_idx in enumerate(used_concepts.tolist()):
+            new_concept_index_map[c_idx] = i
+
+        # Build sub-E
+        new_num_entities = sub_rows.numel()
+        new_num_concepts = used_concepts.numel()
+        E_sub = torch.zeros((new_num_entities, new_num_concepts), dtype=torch.float32, device=self.device)
+
+        old_rows_list = E_rows_sub.tolist()
+        old_cols_list = E_cols_sub.tolist()
+        for k in range(len(old_rows_list)):
+            old_r = old_rows_list[k]
+            old_c = old_cols_list[k]
+            new_r = new_entity_index_map[old_r]
+            new_c = new_concept_index_map[old_c]
+            E_sub[new_r, new_c] = 1.0
+
+        # Build new concepts_per_entity
+        new_concepts_list: List[List[str]] = []
+        for new_r_idx in range(new_num_entities):
+            idx_used = torch.nonzero(E_sub[new_r_idx], as_tuple=True)[0]
+            cset_local = [self.all_concepts[used_concepts[c].item()] for c in idx_used]
+            new_concepts_list.append(cset_local)
+
+        # Build offsets exactly the same way:
+        new_offsets = [0]
+        total_count = 0
+        for ent_list_local in new_concepts_list:
+            for _c in ent_list_local:
+                total_count += 1
+            new_offsets.append(total_count)
+        new_offsets_t = torch.tensor(new_offsets, dtype=torch.long, device=self.device)
+        new_sizes_t = new_offsets_t[1:] - new_offsets_t[:-1]
+
+        new_tl = TorchLevenshtein.__new__(TorchLevenshtein)
+        new_tl.concepts_per_entity = new_concepts_list
+        new_tl.device = self.device
+        new_tl.num_entities = new_num_entities
+        new_tl.num_concepts_total = new_num_concepts
+        new_tl.all_concepts = [self.all_concepts[cid] for cid in used_concepts.tolist()]
+        new_tl.codes_all_2D = sub_codes_all_2D
+        new_tl.lengths_all = sub_lengths_all
+        new_tl.E = E_sub
+        new_tl.entity_offsets = new_offsets_t
+        new_tl.entity_sizes = new_sizes_t
+        new_tl.distance_matrix = sub_distance
+        new_tl.synergy_matrix = None
+        new_tl.dp_buffer = None
+        new_tl.build_synergy_matrix()
+        return new_tl
+
+    def subset_from_concepts_instance(self, concept_strings: List[str]) -> "TorchLevenshtein":
+        """
+        Description:
+            Creates a new TorchLevenshtein instance restricted to specified concept strings.
+            1) All entities are retained.
+            2) Only the requested concepts are kept.
+            3) Synergy matrix is rebuilt based on the partial membership.
+
+        Parameters:
+            concept_strings (List[str]): Concept strings to keep.
+
+        Returns:
+            new_tl (TorchLevenshtein): A new instance containing only those concept strings.
+        """
+        concept_indices_collected = []
+        for c_str in concept_strings:
+            idx_found = self._find_concept_index(c_str)
+            if idx_found is not None:
+                concept_indices_collected.append(idx_found)
+        if len(concept_indices_collected) == 0:
+            empty_concepts_per_entity = [[] for _ in range(self.num_entities)]
+            return TorchLevenshtein(empty_concepts_per_entity, device=self.device)
+        return self.subset_from_concepts_indices_instance(concept_indices_collected)
+
+    def subset_from_concepts_indices_instance(self, concept_indices: List[int]) -> "TorchLevenshtein":
+        """
+        Description:
+            Creates a new TorchLevenshtein instance restricted to specified concept indices.
+            1) All entities are retained.
+            2) The membership is pruned to only those concept indices.
+            3) Synergy matrix is rebuilt.
+
+        Parameters:
+            concept_indices (List[int]): Indices of concepts to keep.
+
+        Returns:
+            new_tl (TorchLevenshtein): A new instance with only those concept indices.
+        """
+        T_all = self.num_concepts_total
+        c_t_raw = torch.tensor(concept_indices, device=self.device, dtype=torch.long)
+        valid_mask = (c_t_raw >= 0) & (c_t_raw < T_all)
+        c_t_valid = c_t_raw[valid_mask]
+        c_t_uniq = torch.unique(c_t_valid, sorted=True)
+
+        if c_t_uniq.numel() == 0:
+            empty_concepts_per_entity = [[] for _ in range(self.num_entities)]
+            return TorchLevenshtein(empty_concepts_per_entity, device=self.device)
+
+        sub_codes_all_2D = self.codes_all_2D[c_t_uniq, :]
+        sub_lengths_all = self.lengths_all[c_t_uniq]
+        sub_distance = self.distance_matrix[c_t_uniq][:, c_t_uniq]
+
+        n_all = self.num_entities
+        E_mask = torch.nonzero(self.E, as_tuple=True)
+        E_rows, E_cols = E_mask[0], E_mask[1]
+        col_in_subset = torch.isin(E_cols, c_t_uniq)
+        E_rows_sub = E_rows[col_in_subset]
+        E_cols_sub = E_cols[col_in_subset]
+
+        # Map old column indices to new
+        new_concept_index_map = {}
+        for i, c_idx in enumerate(c_t_uniq.tolist()):
+            new_concept_index_map[c_idx] = i
+
+        E_sub = torch.zeros((n_all, c_t_uniq.numel()), dtype=torch.float32, device=self.device)
+        old_rows_list = E_rows_sub.tolist()
+        old_cols_list = E_cols_sub.tolist()
+        for k in range(len(old_rows_list)):
+            old_r = old_rows_list[k]
+            old_c = old_cols_list[k]
+            new_c = new_concept_index_map[old_c]
+            E_sub[old_r, new_c] = 1.0
+
+        new_concepts_list: List[List[str]] = []
+        for row_idx in range(n_all):
+            idx_used = torch.nonzero(E_sub[row_idx], as_tuple=True)[0]
+            cset_local = [self.all_concepts[c_t_uniq[c].item()] for c in idx_used]
+            new_concepts_list.append(cset_local)
+
+        new_offsets = [0]
+        total_count = 0
+        for ent_list_local in new_concepts_list:
+            for _c in ent_list_local:
+                total_count += 1
+            new_offsets.append(total_count)
+        new_offsets_t = torch.tensor(new_offsets, dtype=torch.long, device=self.device)
+        new_sizes_t = new_offsets_t[1:] - new_offsets_t[:-1]
+
+        new_tl = TorchLevenshtein.__new__(TorchLevenshtein)
+        new_tl.concepts_per_entity = new_concepts_list
+        new_tl.device = self.device
+        new_tl.num_entities = n_all
+        new_tl.num_concepts_total = c_t_uniq.numel()
+        new_tl.all_concepts = [self.all_concepts[cid] for cid in c_t_uniq.tolist()]
+        new_tl.codes_all_2D = sub_codes_all_2D
+        new_tl.lengths_all = sub_lengths_all
+        new_tl.E = E_sub
+        new_tl.entity_offsets = new_offsets_t
+        new_tl.entity_sizes = new_sizes_t
+        new_tl.distance_matrix = sub_distance
+        new_tl.synergy_matrix = None
+        new_tl.dp_buffer = None
+        new_tl.build_synergy_matrix()
+        return new_tl
