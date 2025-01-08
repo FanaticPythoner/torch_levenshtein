@@ -637,6 +637,5 @@ class TorchLevenshteinTests(unittest.TestCase):
         self.assertTrue(torch.allclose(distances, expected_t, atol=1e-5, rtol=1e-5),
                         "Bulk distances must match individual query_concept_distance results.")
 
-
 if __name__ == "__main__":
     unittest.main()
